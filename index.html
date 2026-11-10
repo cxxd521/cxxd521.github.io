@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>NEBULA//OS</title>
+<title>星云</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
 
@@ -13,7 +13,6 @@
     background:#000;
     color:#fff;
     font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
-    cursor:none;
     -webkit-font-smoothing:antialiased;
   }
 
@@ -187,14 +186,14 @@
     -webkit-appearance:none;
     border:0;
     background:transparent;
-    color:rgba(255,255,255,.5);
+    color:rgba(255,255,255,.63);
     font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
     font-size:9px;
     letter-spacing:.24em;
     text-transform:uppercase;
     padding:9px 18px;
     border-radius:999px;
-    cursor:none;
+    cursor:pointer;
     transition:color .35s,background .45s,box-shadow .45s;
   }
   .switcher button:hover{color:#fff}
@@ -221,17 +220,76 @@
   }
   .hint.off{opacity:0}
 
+  /* ---------- 语言切换 ---------- */
+  .lang{
+    position:fixed;
+    top:42px;
+    right:26px;
+    z-index:10;
+    display:flex;
+    gap:2px;
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:999px;
+    padding:3px;
+    background:rgba(0,0,0,.35);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+  }
+  .lang button{
+    appearance:none;
+    -webkit-appearance:none;
+    border:0;
+    background:transparent;
+    color:rgba(255,255,255,.55);
+    font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,"Microsoft YaHei",monospace;
+    font-size:9.5px;
+    letter-spacing:.1em;
+    line-height:1;
+    padding:6px 11px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:color .3s,background .4s;
+  }
+  .lang button:hover{color:#fff}
+  .lang button.on{background:#f2f7ff;color:#050810}
+
+  /* ---------- 中文排版 ---------- */
+  body[data-lang="zh"] .title{
+    font-size:clamp(2.6rem,12vw,10rem);
+    letter-spacing:.04em;
+    font-weight:700;
+  }
+  body[data-lang="zh"] .title.swap{animation:titleInZh 1s cubic-bezier(.16,1,.3,1)}
+  body[data-lang="zh"] .sub{
+    font-size:clamp(11px,1.5vw,15px);
+    letter-spacing:.30em;
+    text-indent:.30em;
+  }
+  body[data-lang="zh"] .sub.swap{animation:subInZh .9s cubic-bezier(.16,1,.3,1) .06s both}
+  body[data-lang="zh"] .switcher button{letter-spacing:.18em}
+
+  @keyframes titleInZh{
+    0%{opacity:.45;filter:blur(12px);transform:scale(1.08);letter-spacing:.24em}
+    55%{opacity:1}
+    100%{opacity:1;filter:blur(0);transform:scale(1);letter-spacing:.04em}
+  }
+  @keyframes subInZh{
+    from{opacity:0;letter-spacing:1em;filter:blur(6px)}
+    to{opacity:1;letter-spacing:.30em;filter:blur(0)}
+  }
+
   @media (max-width:640px){
     .hud{font-size:8.5px;letter-spacing:.18em}
     .hud-tl,.hud-bl{left:16px}
     .hud-tr,.hud-br{right:16px}
+    .lang{top:40px;right:16px}
+    .lang button{padding:5px 9px;font-size:9px}
     .switcher{bottom:46px}
     .switcher button{padding:8px 11px;font-size:8px;letter-spacing:.14em}
     .hint{display:none}
   }
 
   @media (pointer:coarse){
-    html,body{cursor:auto}
     .switcher button{cursor:pointer}
   }
 
@@ -240,7 +298,7 @@
   }
 </style>
 </head>
-<body>
+<body data-lang="zh">
 
 <canvas id="gl"></canvas>
 <div class="fallback"></div>
@@ -253,15 +311,20 @@
 <div class="hud hud-tl"><b>NEBULA</b><span>//</span>OS</div>
 <div class="hud hud-tr"><span id="clock">--:--:--</span> &nbsp;&middot;&nbsp; <span id="fps">--</span> FPS</div>
 <div class="hud hud-bl">X <span id="px">0.000</span> &nbsp; Y <span id="py">0.000</span> &nbsp; Z <span id="pz">1.00</span></div>
-<div class="hud hud-br"><span id="midx">01</span> / 04 &nbsp;&middot;&nbsp; <span id="autoState">AUTO</span></div>
+<div class="hud hud-br"><span id="midx">01</span> / 04 &nbsp;&middot;&nbsp; <span id="autoState">自动</span></div>
+
+<div class="lang" id="lang">
+  <button type="button" data-l="zh" class="on">中</button>
+  <button type="button" data-l="en">EN</button>
+</div>
 
 <div class="stage">
-  <h1 class="title" id="title">NEBULA</h1>
-  <p class="sub" id="sub">FRACTAL NOISE FIELD</p>
+  <h1 class="title" id="title">星云</h1>
+  <p class="sub" id="sub">分形噪声场</p>
 </div>
 
 <div class="switcher" id="switcher"></div>
-<div class="hint" id="hint">DRAG &middot; SCROLL &middot; CLICK</div>
+<div class="hint" id="hint">拖拽 &middot; 滚轮 &middot; 点击</div>
 
 <script>
 (function(){
@@ -280,13 +343,30 @@
   var autoEl = document.getElementById("autoState");
   var hintEl = document.getElementById("hint");
   var switcher = document.getElementById("switcher");
+  var langWrap = document.getElementById("lang");
+  var langButtons = langWrap ? langWrap.querySelectorAll("button") : [];
 
   var MODES = [
-    { key:"NEBULA", sub:"FRACTAL NOISE FIELD" },
-    { key:"TUNNEL", sub:"INFINITE CORRIDOR" },
-    { key:"WAVES",  sub:"INTERFERENCE FIELD" },
-    { key:"CHROME", sub:"LIQUID METAL" }
+    { zh:"星云", en:"NEBULA", subZh:"分形噪声场", subEn:"FRACTAL NOISE FIELD" },
+    { zh:"隧道", en:"TUNNEL", subZh:"无限走廊",   subEn:"INFINITE CORRIDOR" },
+    { zh:"波纹", en:"WAVES",  subZh:"干涉场",     subEn:"INTERFERENCE FIELD" },
+    { zh:"液态", en:"CHROME", subZh:"液态金属",   subEn:"LIQUID METAL" }
   ];
+
+  var STR = {
+    zh: { auto:"自动", manual:"手动", still:"静态", hint:"拖拽 \u00b7 滚轮 \u00b7 点击" },
+    en: { auto:"AUTO", manual:"MANUAL", still:"STATIC", hint:"DRAG \u00b7 SCROLL \u00b7 CLICK" }
+  };
+
+  var lang = "zh";
+  try {
+    var savedLang = localStorage.getItem("nebula-lang");
+    if (savedLang === "zh" || savedLang === "en") lang = savedLang;
+  } catch (e0) {}
+
+  function t(key){ return (STR[lang] && STR[lang][key]) || ""; }
+  function modeName(m){ return lang === "zh" ? m.zh : m.en; }
+  function modeSub(m){ return lang === "zh" ? m.subZh : m.subEn; }
 
   function pad(n){ return (n < 10 ? "0" : "") + n; }
 
@@ -570,24 +650,50 @@
   var drag = false, lastX = 0, lastY = 0, dragVel = 0;
   var pulse = 0;
 
+  function renderTitle(animate){
+    var m = MODES[mode] || MODES[0];
+    titleEl.textContent = modeName(m);
+    subEl.textContent = modeSub(m);
+
+    if (animate !== false){
+      titleEl.classList.remove("swap");
+      subEl.classList.remove("swap");
+      void titleEl.offsetWidth;
+      titleEl.classList.add("swap");
+      subEl.classList.add("swap");
+    }
+  }
+
+  function applyLang(l, animate){
+    lang = (l === "en") ? "en" : "zh";
+    document.body.setAttribute("data-lang", lang);
+
+    try { localStorage.setItem("nebula-lang", lang); } catch (e1) {}
+
+    for (var i = 0; i < langButtons.length; i++){
+      langButtons[i].classList.toggle("on", langButtons[i].getAttribute("data-l") === lang);
+    }
+
+    for (var j = 0; j < switcher.children.length; j++){
+      switcher.children[j].textContent = modeName(MODES[j]);
+    }
+
+    if (hintEl) hintEl.textContent = t("hint");
+    if (autoEl) autoEl.textContent = autoPlay ? t("auto") : t("manual");
+
+    renderTitle(animate);
+  }
+
   function setMode(i, manual){
     mode = ((i % MODES.length) + MODES.length) % MODES.length;
     modeTimer = 0;
 
     if (manual){
       autoPlay = false;
-      autoEl.textContent = "MANUAL";
+      autoEl.textContent = t("manual");
     }
 
-    var m = MODES[mode];
-    titleEl.textContent = m.key;
-    subEl.textContent = m.sub;
-
-    titleEl.classList.remove("swap");
-    subEl.classList.remove("swap");
-    void titleEl.offsetWidth;
-    titleEl.classList.add("swap");
-    subEl.classList.add("swap");
+    renderTitle(true);
 
     midxEl.textContent = ("0" + (mode + 1)).slice(-2);
 
@@ -604,13 +710,23 @@
     (function(i){
       var b = document.createElement("button");
       b.type = "button";
-      b.textContent = MODES[i].key;
+      b.textContent = modeName(MODES[i]);
       b.addEventListener("click", function(e){
         e.stopPropagation();
         setMode(i, true);
       });
       switcher.appendChild(b);
     })(mi);
+  }
+
+  for (var li = 0; li < langButtons.length; li++){
+    (function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var l = btn.getAttribute("data-l");
+        if (l !== lang) applyLang(l, true);
+      });
+    })(langButtons[li]);
   }
 
   /* ---------------- 交互 ---------------- */
@@ -773,10 +889,13 @@
     var qs = new URLSearchParams(window.location.search);
     var qm = parseInt(qs.get("m"), 10);
     if (!isNaN(qm) && qm >= 0 && qm < MODES.length) startMode = qm;
+    var ql = qs.get("lang");
+    if (ql === "zh" || ql === "en") lang = ql;
   } catch (err) { startMode = 0; }
 
+  applyLang(lang, false);
   setMode(startMode, false);
-  autoEl.textContent = "AUTO";
+  autoEl.textContent = t("auto");
   requestAnimationFrame(frame);
 
   /* 键盘：1-4 切换，空格暂停自动 */
@@ -789,7 +908,7 @@
     if (e.code === "Space" || e.key === " "){
       e.preventDefault();
       autoPlay = !autoPlay;
-      autoEl.textContent = autoPlay ? "AUTO" : "MANUAL";
+      autoEl.textContent = autoPlay ? t("auto") : t("manual");
       if (autoPlay) modeTimer = 0;
       setMode(mode, false);
     }
@@ -798,32 +917,39 @@
   /* ---------------- 兜底 ---------------- */
 
   function bootFallback(){
-    titleEl.textContent = MODES[0].key;
-    subEl.textContent = MODES[0].sub;
+    mode = 0;
     fpsEl.textContent = "--";
     midxEl.textContent = "01";
-    autoEl.textContent = "STATIC";
+    renderTitle(false);
 
     for (var i = 0; i < MODES.length; i++){
       (function(idx){
         var b = document.createElement("button");
         b.type = "button";
-        b.textContent = MODES[idx].key;
+        b.textContent = modeName(MODES[idx]);
         if (idx === 0) b.classList.add("active");
         b.addEventListener("click", function(){
+          mode = idx;
           for (var k = 0; k < switcher.children.length; k++){
             switcher.children[k].classList.toggle("active", k === idx);
           }
-          titleEl.textContent = MODES[idx].key;
-          subEl.textContent = MODES[idx].sub;
-          titleEl.classList.remove("swap");
-          void titleEl.offsetWidth;
-          titleEl.classList.add("swap");
+          renderTitle(true);
           midxEl.textContent = ("0" + (idx + 1)).slice(-2);
         });
         switcher.appendChild(b);
       })(i);
     }
+
+    for (var li = 0; li < langButtons.length; li++){
+      (function(btn){
+        btn.addEventListener("click", function(){
+          applyLang(btn.getAttribute("data-l"), true);
+        });
+      })(langButtons[li]);
+    }
+
+    applyLang(lang, true);
+    autoEl.textContent = t("still");
 
     function tickClock(){
       var d = new Date();
